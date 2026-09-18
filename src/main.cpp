@@ -8,7 +8,9 @@
 #include "Clock.h"
 #include "Config.h"
 #include "Display.h"
+#include "GithubOta.h"
 #include "History.h"
+#include "LanOta.h"
 #include "RtdSensor.h"
 
 namespace {
@@ -71,6 +73,8 @@ void loop() {
   uint32_t now = millis();
 
   Clock::poll();
+  LanOta::poll();
+  GithubOta::poll();
 
   uint32_t correctionFloor;
   int32_t correctionDelta;

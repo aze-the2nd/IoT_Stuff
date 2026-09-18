@@ -32,3 +32,19 @@ constexpr uint32_t HISTORY_WINDOW_SECONDS = HISTORY_DAYS * 24UL * 60 * 60;
 
 constexpr const char* HISTORY_FILE = "/history.bin";
 constexpr const char* HISTORY_META_FILE = "/history_meta.bin";
+
+// --- OTA ----------------------------------------------------------------------
+// Bump this before tagging a GitHub release (see scripts/release.sh) — the
+// device compares this against the latest release's tag to decide whether to
+// self-update.
+constexpr const char* FW_VERSION = "1";
+
+// LAN OTA (ArduinoOTA, pushed from PlatformIO during development).
+constexpr const char* OTA_HOSTNAME = "iot-rtd-sensor";
+// OTA_PASSWORD lives in secrets.h, not here.
+
+// GitHub-hosted pull update (checked periodically; see GithubOta).
+constexpr const char* GITHUB_OWNER = "aze-the2nd";
+constexpr const char* GITHUB_REPO = "IoT_Stuff";
+constexpr const char* GITHUB_ASSET_NAME = "firmware.bin";
+constexpr uint32_t GITHUB_OTA_CHECK_INTERVAL_MS = 24UL * 60 * 60 * 1000;  // once/day
