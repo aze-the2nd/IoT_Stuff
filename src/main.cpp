@@ -10,6 +10,7 @@
 #include "Display.h"
 #include "GithubOta.h"
 #include "History.h"
+#include "InternalTemp.h"
 #include "LanOta.h"
 #include "RtdSensor.h"
 
@@ -23,7 +24,8 @@ HistorySample* g_windowBuf = nullptr;
 
 uint32_t g_lastSampleMs = 0;
 uint32_t g_lastStoreMs = 0;
-float g_lastTempC = NAN;
+float g_lastTempC = NAN;         // most recent value eligible for storage
+bool g_haveStorableValue = false;
 bool g_sensorFault = true;
 
 void refreshChart() {
@@ -89,13 +91,28 @@ void loop() {
 
     float tempC;
     g_sensorFault = !g_rtd.read(tempC);
+
     if (!g_sensorFault) {
       g_lastTempC = tempC;
+      g_haveStorableValue = true;
+      Display::showLiveTemperature(g_lastTempC, Display::TempSource::kRtd);
+    } else {
+      // RTD unavailable — show the ESP32's internal die temperature as a
+      // rough live/comparison value. Uncalibrated and dominated by chip
+      // self-heating, not the room — whether it also gets persisted to
+      // history (e.g. just to see what the chart looks like before the RTD
+      // is wired up) is controlled by STORE_INTERNAL_FALLBACK_IN_HISTORY in
+      // Config.h; turn that off once real data matters.
+      float internalC = InternalTemp::readC();
+      Display::showLiveTemperature(internalC, Display::TempSource::kInternalFallback);
+      g_haveStorableValue = STORE_INTERNAL_FALLBACK_IN_HISTORY;
+      if (g_haveStorableValue) {
+        g_lastTempC = internalC;
+      }
     }
-    Display::showLiveTemperature(g_lastTempC, !g_sensorFault);
   }
 
-  if (Clock::hasTime() && !g_sensorFault && now - g_lastStoreMs >= STORE_INTERVAL_MS) {
+  if (Clock::hasTime() && g_haveStorableValue && now - g_lastStoreMs >= STORE_INTERVAL_MS) {
     g_lastStoreMs = now;
     History::append(static_cast<uint32_t>(time(nullptr)), g_lastTempC);
     Clock::maybeRefreshAnchor();

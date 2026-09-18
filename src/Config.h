@@ -33,6 +33,13 @@ constexpr uint32_t HISTORY_WINDOW_SECONDS = HISTORY_DAYS * 24UL * 60 * 60;
 constexpr const char* HISTORY_FILE = "/history.bin";
 constexpr const char* HISTORY_META_FILE = "/history_meta.bin";
 
+// If true, a live internal-die-temp fallback reading (see InternalTemp.h)
+// also gets written to history whenever the RTD is unavailable — handy to
+// see what the chart looks like before the RTD is wired up. Flip to false
+// once real data matters: die temp is dominated by chip self-heating, not
+// the room, and mixing it into the 7-day trend would be misleading.
+constexpr bool STORE_INTERNAL_FALLBACK_IN_HISTORY = true;
+
 // --- OTA ----------------------------------------------------------------------
 // Bump this before tagging a GitHub release (see scripts/release.sh) — the
 // device compares this against the latest release's tag to decide whether to

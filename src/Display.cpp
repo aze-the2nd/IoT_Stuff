@@ -44,22 +44,31 @@ void Display::showStatus(const char* msg) {
   tft.print(msg);
 }
 
-void Display::showLiveTemperature(float tempC, bool sensorOk) {
+void Display::showLiveTemperature(float tempC, TempSource source) {
   tft.fillRect(0, LIVE_Y, SCREEN_W, LIVE_H, TFT_BLACK);
   tft.setCursor(8, LIVE_Y + 10);
 
-  if (!sensorOk || isnan(tempC)) {
+  if (source == TempSource::kNone || isnan(tempC)) {
     tft.setTextColor(TFT_RED, TFT_BLACK);
     tft.setTextSize(3);
     tft.print("SENSOR FAULT");
     return;
   }
 
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  // Internal-fallback readings are the ESP32's uncalibrated die temperature,
+  // not the room — orange + a label keeps that visually unmistakable from a
+  // real RTD reading.
+  bool fallback = (source == TempSource::kInternalFallback);
+  tft.setTextColor(fallback ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
   tft.setTextSize(5);
   tft.printf("%.1f", tempC);
   tft.setTextSize(3);
   tft.print(" C");
+
+  if (fallback) {
+    tft.setTextSize(2);
+    tft.print(" (intern)");
+  }
 }
 
 void Display::showChart(const HistorySample* samples, size_t count,
