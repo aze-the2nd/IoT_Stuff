@@ -62,9 +62,28 @@ void Display::showLiveTemperature(float tempC, bool sensorOk) {
   tft.print(" C");
 }
 
+namespace {
+
+// Day gridlines + "-7" .. "0" labels — independent of whether there's any
+// data yet, so the axis is always legible instead of only appearing once
+// the chart has enough samples to plot.
+void drawDayAxis() {
+  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.setTextSize(1);
+  for (uint32_t d = 0; d <= HISTORY_DAYS; d++) {
+    int x = CHART_X + static_cast<int>((float)d / HISTORY_DAYS * (CHART_W - 1));
+    tft.drawFastVLine(x, CHART_Y, CHART_H, TFT_NAVY);
+    tft.setCursor(x - 4, CHART_Y + CHART_H + 2);
+    tft.print(static_cast<int>(d) - static_cast<int>(HISTORY_DAYS));
+  }
+}
+
+}  // namespace
+
 void Display::showChart(const HistorySample* samples, size_t count,
                          uint32_t nowEpoch, uint32_t windowSeconds) {
   tft.fillRect(CHART_X, CHART_Y, CHART_W, CHART_H, TFT_BLACK);
+  drawDayAxis();
 
   if (count < 2) {
     tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
@@ -111,16 +130,6 @@ void Display::showChart(const HistorySample* samples, size_t count,
     float frac = (t - minT) / (maxT - minT);
     return CHART_Y + CHART_H - 1 - static_cast<int>(frac * (CHART_H - 1));
   };
-
-  // Day gridlines + labels ("-7" .. "0" days ago).
-  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-  tft.setTextSize(1);
-  for (uint32_t d = 0; d <= HISTORY_DAYS; d++) {
-    int x = CHART_X + static_cast<int>((float)d / HISTORY_DAYS * (CHART_W - 1));
-    tft.drawFastVLine(x, CHART_Y, CHART_H, TFT_NAVY);
-    tft.setCursor(x - 4, CHART_Y + CHART_H + 2);
-    tft.print(static_cast<int>(d) - static_cast<int>(HISTORY_DAYS));
-  }
 
   // Y-axis min/max labels.
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
