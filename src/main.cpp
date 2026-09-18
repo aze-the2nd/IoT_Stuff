@@ -1,36 +1,100 @@
-// Toolchain smoke test: confirm PlatformIO can build and flash C++ firmware
-// onto the CYD board over /dev/ttyUSB0, and that the built-in ILI9341
-// display is wired up correctly. No sensor logic yet.
+// Smart RTD sensor: reads a Pt-1000 (4-wire, via MAX31865) once a second for
+// the live display, persists one sample per minute to a 7-day ring buffer on
+// flash, and renders a trend chart of that history.
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>
+#include <time.h>
 
-TFT_eSPI tft = TFT_eSPI();
+#include "Clock.h"
+#include "Config.h"
+#include "Display.h"
+#include "History.h"
+#include "RtdSensor.h"
+
+namespace {
+
+RtdSensor g_rtd;
+// Heap-allocated (not a static array): HISTORY_CAPACITY * sizeof(HistorySample)
+// is ~80KB, which overflows the ESP32's statically-linked DRAM segment
+// alongside the Wi-Fi/BT stacks if declared as a global array.
+HistorySample* g_windowBuf = nullptr;
+
+uint32_t g_lastSampleMs = 0;
+uint32_t g_lastStoreMs = 0;
+float g_lastTempC = NAN;
+bool g_sensorFault = true;
+
+void refreshChart() {
+  time_t now = time(nullptr);
+  size_t count = History::readWindow(static_cast<uint32_t>(now), HISTORY_WINDOW_SECONDS,
+                                      g_windowBuf, HISTORY_CAPACITY);
+  Display::showChart(g_windowBuf, count, static_cast<uint32_t>(now), HISTORY_WINDOW_SECONDS);
+}
+
+void updateStatus() {
+  if (Clock::isRealTimeSynced()) {
+    Display::showStatus("Wi-Fi + time OK");
+  } else if (Clock::hasTime()) {
+    Display::showStatus("No Wi-Fi - using last known time");
+  } else {
+    Display::showStatus("No Wi-Fi/time - history paused");
+  }
+}
+
+}  // namespace
 
 void setup() {
   Serial.begin(115200);
 
-  tft.init();
-  tft.setRotation(1);
-  tft.fillScreen(TFT_BLACK);
+  g_windowBuf = new HistorySample[HISTORY_CAPACITY];
 
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.setTextSize(3);
-  tft.setCursor(10, 10);
-  tft.println("IoT-Stuff");
+  Display::begin();
+  Display::showStatus("Connecting Wi-Fi...");
 
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.setTextSize(2);
-  tft.setCursor(10, 60);
-  tft.println("Hello, RTD sensor!");
+  // Must run before Clock::begin(): Clock persists its anchor timestamp on
+  // the same LittleFS volume, and needs it mounted first.
+  if (!History::begin()) {
+    Display::showStatus("Storage init failed!");
+  }
 
-  Serial.println("Boot OK: display initialized.");
+  Clock::begin();
+  updateStatus();
+
+  if (!g_rtd.begin()) {
+    Display::showStatus("RTD sensor not responding - check wiring");
+  }
+
+  refreshChart();
 }
 
 void loop() {
-  static uint32_t lastTick = 0;
-  if (millis() - lastTick >= 1000) {
-    lastTick = millis();
-    Serial.printf("uptime: %lus\n", millis() / 1000);
+  uint32_t now = millis();
+
+  Clock::poll();
+
+  uint32_t correctionFloor;
+  int32_t correctionDelta;
+  if (Clock::consumeCorrection(correctionFloor, correctionDelta)) {
+    History::shiftEpochsFrom(correctionFloor, correctionDelta);
+    refreshChart();
+    updateStatus();
+  }
+
+  if (now - g_lastSampleMs >= SAMPLE_INTERVAL_MS) {
+    g_lastSampleMs = now;
+
+    float tempC;
+    g_sensorFault = !g_rtd.read(tempC);
+    if (!g_sensorFault) {
+      g_lastTempC = tempC;
+    }
+    Display::showLiveTemperature(g_lastTempC, !g_sensorFault);
+  }
+
+  if (Clock::hasTime() && !g_sensorFault && now - g_lastStoreMs >= STORE_INTERVAL_MS) {
+    g_lastStoreMs = now;
+    History::append(static_cast<uint32_t>(time(nullptr)), g_lastTempC);
+    Clock::maybeRefreshAnchor();
+    refreshChart();
   }
 }

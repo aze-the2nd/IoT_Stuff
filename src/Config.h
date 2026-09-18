@@ -1,0 +1,34 @@
+#pragma once
+
+#include <Arduino.h>
+
+// --- MAX31865 (RTD-to-digital) ---------------------------------------------
+// Wired on the CYD's exposed VSPI header pins (SCK 18 / MISO 19 / MOSI 23 —
+// free because the display runs on HSPI; see platformio.ini's
+// USE_HSPI_PORT flag). Only the chip-select pin is free to choose — verify
+// GPIO22 is actually broken out on your board's header (CN1/P3) and change
+// here if not.
+constexpr uint8_t PIN_RTD_CS = 22;
+
+// RTD element nominal resistance at 0°C.
+constexpr float RTD_NOMINAL_OHMS = 1000.0f;  // Pt-1000
+
+// MAX31865 reference resistor on the breakout. Adafruit's PT1000 breakout
+// uses 4300R — verify against your specific board's silkscreen/datasheet;
+// a wrong value here shifts every reading.
+constexpr float RTD_REF_OHMS = 4300.0f;
+
+// --- Wi-Fi / time ------------------------------------------------------------
+constexpr const char* NTP_SERVER = "pool.ntp.org";
+// POSIX TZ string: Central European Time with automatic DST.
+constexpr const char* TZ_INFO = "CET-1CEST,M3.5.0,M10.5.0/3";
+
+// --- History / storage -------------------------------------------------------
+constexpr uint32_t SAMPLE_INTERVAL_MS = 1000;         // live reading cadence
+constexpr uint32_t STORE_INTERVAL_MS = 60UL * 1000;   // persisted-sample cadence
+constexpr uint32_t HISTORY_DAYS = 7;
+constexpr uint32_t HISTORY_CAPACITY = HISTORY_DAYS * 24 * 60;  // 1 sample/min
+constexpr uint32_t HISTORY_WINDOW_SECONDS = HISTORY_DAYS * 24UL * 60 * 60;
+
+constexpr const char* HISTORY_FILE = "/history.bin";
+constexpr const char* HISTORY_META_FILE = "/history_meta.bin";
