@@ -1,0 +1,8 @@
+# Editor/OS cruft
+.DS_Store
+*.swp
+
+# Build artifacts (placeholder — adjust once a toolchain is chosen)
+build/
+.pio/
+*.uf2
