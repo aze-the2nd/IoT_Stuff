@@ -140,3 +140,10 @@ void History::reset() {
   ensureHistoryFile();
   saveMeta();
 }
+
+uint32_t History::filledCount() { return g_meta.filled; }
+
+void History::filesystemUsage(uint32_t& usedBytes, uint32_t& totalBytes) {
+  usedBytes = LittleFS.usedBytes();
+  totalBytes = LittleFS.totalBytes();
+}

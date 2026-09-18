@@ -29,4 +29,11 @@ void shiftEpochsFrom(uint32_t floorEpoch, int32_t deltaSeconds);
 // Wipes all stored samples (e.g. to discard test data). Call after begin().
 void reset();
 
+// Number of samples currently stored (<= HISTORY_CAPACITY).
+uint32_t filledCount();
+
+// LittleFS space usage in bytes, for the whole filesystem (not just the
+// history file).
+void filesystemUsage(uint32_t& usedBytes, uint32_t& totalBytes);
+
 }  // namespace History
