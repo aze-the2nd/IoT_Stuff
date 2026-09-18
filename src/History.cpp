@@ -132,3 +132,11 @@ void History::shiftEpochsFrom(uint32_t floorEpoch, int32_t deltaSeconds) {
   }
   f.close();
 }
+
+void History::reset() {
+  LittleFS.remove(HISTORY_FILE);
+  LittleFS.remove(HISTORY_META_FILE);
+  g_meta = {0, 0};
+  ensureHistoryFile();
+  saveMeta();
+}

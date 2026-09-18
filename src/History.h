@@ -26,4 +26,7 @@ size_t readWindow(uint32_t nowEpoch, uint32_t windowSeconds,
 // timestamped from Clock's anchor estimate before a real NTP sync landed.
 void shiftEpochsFrom(uint32_t floorEpoch, int32_t deltaSeconds);
 
+// Wipes all stored samples (e.g. to discard test data). Call after begin().
+void reset();
+
 }  // namespace History
