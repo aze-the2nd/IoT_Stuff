@@ -16,11 +16,13 @@ constexpr int STATUS_Y = 2;
 constexpr int STATUS_H = 14;
 
 constexpr int LIVE_Y = STATUS_Y + STATUS_H;
-// Trimmed to just fit the size-5 live number (see its tighter cursor offset
-// below) — the freed space goes to the chart, which is the point.
-constexpr int LIVE_H = 46;
+// Trimmed to just fit the (now smaller, size-4) live number — the freed
+// space goes to the chart, which is the point.
+constexpr int LIVE_H = 36;
 
-constexpr int CHART_X = 34;
+// Just wide enough for the Y-axis min/max labels ("-12".."103" at text
+// size 1, ~6px/char) plus a couple px of breathing room before the border.
+constexpr int CHART_X = 24;
 constexpr int CHART_Y = LIVE_Y + LIVE_H + 4;
 constexpr int CHART_W = SCREEN_W - CHART_X - 6;
 constexpr int CHART_H = SCREEN_H - CHART_Y - 16;
@@ -48,19 +50,19 @@ void Display::showStatus(const char* msg) {
 
 void Display::showLiveTemperature(float tempC, bool sensorOk) {
   tft.fillRect(0, LIVE_Y, SCREEN_W, LIVE_H, TFT_BLACK);
-  tft.setCursor(8, LIVE_Y + 4);
+  tft.setCursor(8, LIVE_Y + 2);
 
   if (!sensorOk || isnan(tempC)) {
     tft.setTextColor(TFT_RED, TFT_BLACK);
-    tft.setTextSize(3);
+    tft.setTextSize(2);
     tft.print("SENSOR FAULT");
     return;
   }
 
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.setTextSize(5);
+  tft.setTextSize(4);
   tft.printf("%.1f", tempC);
-  tft.setTextSize(3);
+  tft.setTextSize(2);
   tft.print(" C");
 }
 
