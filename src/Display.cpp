@@ -13,13 +13,15 @@ constexpr int SCREEN_W = 320;
 constexpr int SCREEN_H = 240;
 
 constexpr int STATUS_Y = 2;
-constexpr int STATUS_H = 16;
+constexpr int STATUS_H = 14;
 
 constexpr int LIVE_Y = STATUS_Y + STATUS_H;
-constexpr int LIVE_H = 64;
+// Trimmed to just fit the size-5 live number (see its tighter cursor offset
+// below) — the freed space goes to the chart, which is the point.
+constexpr int LIVE_H = 46;
 
 constexpr int CHART_X = 34;
-constexpr int CHART_Y = LIVE_Y + LIVE_H + 6;
+constexpr int CHART_Y = LIVE_Y + LIVE_H + 4;
 constexpr int CHART_W = SCREEN_W - CHART_X - 6;
 constexpr int CHART_H = SCREEN_H - CHART_Y - 16;
 
@@ -46,7 +48,7 @@ void Display::showStatus(const char* msg) {
 
 void Display::showLiveTemperature(float tempC, bool sensorOk) {
   tft.fillRect(0, LIVE_Y, SCREEN_W, LIVE_H, TFT_BLACK);
-  tft.setCursor(8, LIVE_Y + 10);
+  tft.setCursor(8, LIVE_Y + 4);
 
   if (!sensorOk || isnan(tempC)) {
     tft.setTextColor(TFT_RED, TFT_BLACK);
