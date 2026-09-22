@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS keller_temp (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  recorded_at DATETIME NOT NULL,
+  temp_c FLOAT NOT NULL
+);

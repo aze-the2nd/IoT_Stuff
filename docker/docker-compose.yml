@@ -1,0 +1,37 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: iot-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: iot_sensors
+      MYSQL_USER: iot
+      MYSQL_PASSWORD: pass1234
+      MYSQL_ROOT_PASSWORD: pass1234
+    volumes:
+      - iot-mysql-data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:3306:3306"
+
+  # Small HTTP-to-MySQL bridge. The ESP32 can't easily speak the MySQL wire
+  # protocol itself (no maintained ESP32-compatible Arduino client, and the
+  # firmware's flash is already >80% full), so it POSTs plain JSON here
+  # instead over WiFi, and this container does the actual DB insert with a
+  # normal, well-supported Python MySQL driver.
+  bridge:
+    build: ./bridge
+    container_name: iot-db-bridge
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      DB_HOST: mysql
+      DB_USER: iot
+      DB_PASSWORD: pass1234
+      DB_NAME: iot_sensors
+    ports:
+      - "0.0.0.0:5005:5005"
+
+volumes:
+  iot-mysql-data:

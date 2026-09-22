@@ -21,5 +21,8 @@ class RtdSensor {
   }
 
  private:
-  Adafruit_MAX31865 thermo_{PIN_RTD_CS};
+  // Bit-banged (software) SPI rather than a hardware peripheral — keeps
+  // the RTD read fully independent of the display/touch HSPI bus. A 1 Hz
+  // read has no meaningful performance need for hardware SPI anyway.
+  Adafruit_MAX31865 thermo_{PIN_RTD_CS, PIN_RTD_MOSI, PIN_RTD_MISO, PIN_RTD_SCLK};
 };

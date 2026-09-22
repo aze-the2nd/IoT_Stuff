@@ -11,6 +11,69 @@ namespace {
 
 TFT_eSPI tft;
 
+// --- Touch (XPT2046, via TFT_eSPI's raw functions) --------------------------
+// TFT_eSPI's own low-level getTouchRawZ()/getTouchRaw() communicate over
+// the SAME HSPI peripheral instance the display already uses (touch and
+// display share physical bus wires on this board, only CS differs) — no
+// competing hardware peripheral, so no bus-ownership conflict. Confirmed
+// working: these raw reads reliably returned real, varying pressure/
+// position data in testing. The bug was entirely in TFT_eSPI's higher-level
+// getTouch()/validTouch(), which rejects a reading unless two samples taken
+// ~3ms apart agree within 20 raw units — too strict for this panel's noise,
+// so it returned false almost always even when raw data was clearly good.
+// Fix: read the raw functions directly and do our own, more tolerant
+// outlier rejection (best-two-of-three samples, same idea as
+// PaulStoffregen's XPT2046_Touchscreen library) instead of TFT_eSPI's
+// consecutive-pair check. Two hardware-peripheral-based approaches
+// (TFT_eSPI's own touch, and a separate XPT2046_Touchscreen instance on
+// VSPI) plus one bit-banged rewrite were tried and ruled out first — see
+// git history if revisiting this.
+//
+// That got real communication working, but the Z-threshold check alone
+// turned out to false-trigger from just picking the board up — handling
+// the panel couples enough noise into the analog X/Y/Z lines to look like
+// a light press. The XPT2046's PENIRQ pin (wired here as PIN_TOUCH_IRQ) is
+// a hardware comparator that only pulls low on genuine resistive contact
+// between the panel's layers, so gate every read behind it first — noise
+// picked up without actual contact won't assert this line.
+constexpr int TOUCH_Z_THRESHOLD = 500;
+
+// Raw range from TFT_eSPI's getTouchRaw() is ~13-bit (0..8191). Mapped
+// empirically against the physical board: X follows screen X directly
+// (min ~20 at the left edge, ~8191 at the right); Y is inverted (~8191 at
+// the top, ~0 at the bottom).
+constexpr int TOUCH_RAW_X_MIN = 20;
+constexpr int TOUCH_RAW_X_MAX = 8191;
+constexpr int TOUCH_RAW_Y_MIN = 0;
+constexpr int TOUCH_RAW_Y_MAX = 8191;
+
+int16_t bestTwoAvg(int16_t a, int16_t b, int16_t c) {
+  int16_t dab = abs(a - b), dac = abs(a - c), dcb = abs(c - b);
+  if (dab <= dac && dab <= dcb) return (a + b) / 2;
+  if (dac <= dab && dac <= dcb) return (a + c) / 2;
+  return (c + b) / 2;
+}
+
+// Returns true and fills outX/outY (raw ADC units) if currently pressed
+// above the noise floor.
+bool touchReadRaw(int16_t& outX, int16_t& outY) {
+  // Hardware gate first: PENIRQ (active low) only asserts on real contact.
+  // Skip the SPI transaction entirely otherwise — cheap and avoids feeding
+  // noise-only Z spikes into the rest of the pipeline.
+  if (digitalRead(PIN_TOUCH_IRQ) != LOW) return false;
+
+  if (tft.getTouchRawZ() < TOUCH_Z_THRESHOLD) return false;
+
+  uint16_t xs[3], ys[3];
+  for (int i = 0; i < 3; i++) {
+    tft.getTouchRaw(&xs[i], &ys[i]);
+  }
+
+  outX = bestTwoAvg(xs[0], xs[1], xs[2]);
+  outY = bestTwoAvg(ys[0], ys[1], ys[2]);
+  return true;
+}
+
 constexpr int SCREEN_W = 320;
 constexpr int SCREEN_H = 240;
 
@@ -55,28 +118,45 @@ void drawGear(int cx, int cy, int r, uint16_t color) {
 void Display::begin() {
   tft.init();
   tft.setRotation(1);
-  tft.fillScreen(TFT_BLACK);
+
+  pinMode(PIN_TOUCH_IRQ, INPUT);
+
   drawChrome();
 }
 
 void Display::drawChrome() {
+  // Full clear first: this is also what wipes the info screen's leftovers
+  // when returning from it. showStatus()/showLiveTemperature()/showChart()
+  // each only clear their own region, not the y-axis label margin to the
+  // chart's left, so without this a closed info screen left stray text
+  // behind there.
+  tft.fillScreen(TFT_BLACK);
   tft.drawRect(CHART_X - 1, CHART_Y - 1, CHART_W + 2, CHART_H + 2, TFT_DARKGREY);
   drawGear(GEAR_X + GEAR_SIZE / 2, GEAR_Y + GEAR_SIZE / 2, GEAR_SIZE / 2 - 2, TFT_LIGHTGREY);
 }
 
 bool Display::readTouch(int16_t& x, int16_t& y) {
-  uint16_t tx, ty;
-  if (tft.getTouch(&tx, &ty)) {
-    x = static_cast<int16_t>(tx);
-    y = static_cast<int16_t>(ty);
-    return true;
-  }
-  return false;
+  int16_t rx, ry;
+  if (!touchReadRaw(rx, ry)) return false;
+
+  long xx = map(rx, TOUCH_RAW_X_MIN, TOUCH_RAW_X_MAX, 0, SCREEN_W - 1);
+  long yy = map(ry, TOUCH_RAW_Y_MIN, TOUCH_RAW_Y_MAX, 0, SCREEN_H - 1);
+  yy = SCREEN_H - 1 - yy;  // raw Y is inverted on this panel
+
+  x = static_cast<int16_t>(constrain(xx, 0, SCREEN_W - 1));
+  y = static_cast<int16_t>(constrain(yy, 0, SCREEN_H - 1));
+  return true;
 }
 
 bool Display::isInGearZone(int16_t x, int16_t y) {
   return x >= GEAR_X - GEAR_HIT_MARGIN && x <= GEAR_X + GEAR_SIZE + GEAR_HIT_MARGIN &&
          y >= GEAR_Y - GEAR_HIT_MARGIN && y <= GEAR_Y + GEAR_SIZE + GEAR_HIT_MARGIN;
+}
+
+void Display::debugTouchOverlay() {
+  int16_t rx, ry;
+  if (!touchReadRaw(rx, ry)) return;
+  Serial.printf("[touch] raw x=%d y=%d\n", rx, ry);
 }
 
 void Display::showStatus(const char* msg) {
@@ -106,19 +186,23 @@ void Display::showLiveTemperature(float tempC, bool sensorOk) {
   tft.print(" C");
 }
 
+// Rolling 24h chart window — see CHART_WINDOW_SECONDS in Config.h.
+constexpr int CHART_WINDOW_HOURS = CHART_WINDOW_SECONDS / 3600;
+constexpr int CHART_TICK_HOURS = 4;
+
 namespace {
 
-// Day gridlines + "-7" .. "0" labels — independent of whether there's any
-// data yet, so the axis is always legible instead of only appearing once
-// the chart has enough samples to plot.
-void drawDayAxis() {
+// Hour gridlines + "-24" .. "0" labels — independent of whether there's
+// any data yet, so the axis is always legible instead of only appearing
+// once the chart has enough samples to plot.
+void drawTimeAxis() {
   tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
   tft.setTextSize(1);
-  for (uint32_t d = 0; d <= HISTORY_DAYS; d++) {
-    int x = CHART_X + static_cast<int>((float)d / HISTORY_DAYS * (CHART_W - 1));
+  for (int h = 0; h <= CHART_WINDOW_HOURS; h += CHART_TICK_HOURS) {
+    int x = CHART_X + static_cast<int>((float)h / CHART_WINDOW_HOURS * (CHART_W - 1));
     tft.drawFastVLine(x, CHART_Y, CHART_H, TFT_NAVY);
-    tft.setCursor(x - 4, CHART_Y + CHART_H + 2);
-    tft.print(static_cast<int>(d) - static_cast<int>(HISTORY_DAYS));
+    tft.setCursor(x - 6, CHART_Y + CHART_H + 2);
+    tft.print(h - CHART_WINDOW_HOURS);
   }
 }
 
@@ -127,7 +211,7 @@ void drawDayAxis() {
 void Display::showChart(const HistorySample* samples, size_t count,
                          uint32_t nowEpoch, uint32_t windowSeconds) {
   tft.fillRect(CHART_X, CHART_Y, CHART_W, CHART_H, TFT_BLACK);
-  drawDayAxis();
+  drawTimeAxis();
 
   if (count < 2) {
     tft.setTextColor(TFT_DARKGREY, TFT_BLACK);

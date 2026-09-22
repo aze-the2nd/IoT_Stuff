@@ -8,6 +8,7 @@
 
 #include "Clock.h"
 #include "Config.h"
+#include "DbUpload.h"
 #include "Display.h"
 #include "GithubOta.h"
 #include "History.h"
@@ -35,9 +36,9 @@ constexpr uint32_t TOUCH_DEBOUNCE_MS = 400;
 
 void refreshChart() {
   time_t now = time(nullptr);
-  size_t count = History::readWindow(static_cast<uint32_t>(now), HISTORY_WINDOW_SECONDS,
+  size_t count = History::readWindow(static_cast<uint32_t>(now), CHART_WINDOW_SECONDS,
                                       g_windowBuf, HISTORY_CAPACITY);
-  Display::showChart(g_windowBuf, count, static_cast<uint32_t>(now), HISTORY_WINDOW_SECONDS);
+  Display::showChart(g_windowBuf, count, static_cast<uint32_t>(now), CHART_WINDOW_SECONDS);
 }
 
 void updateStatus() {
@@ -145,6 +146,7 @@ void loop() {
     g_lastStoreMs = now;
     g_lastStoreEpoch = static_cast<uint32_t>(time(nullptr));
     History::append(g_lastStoreEpoch, g_lastTempC);
+    DbUpload::upload(g_lastStoreEpoch, g_lastTempC);
     Clock::maybeRefreshAnchor();
     if (!g_settingsOpen) {
       refreshChart();
@@ -169,4 +171,6 @@ void loop() {
     }
   }
   g_prevTouched = touched;
+
+  Display::debugTouchOverlay();  // TEMP: remove once touch is confirmed working
 }

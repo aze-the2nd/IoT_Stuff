@@ -3,20 +3,48 @@
 #include <Arduino.h>
 
 // --- MAX31865 (RTD-to-digital) ---------------------------------------------
-// Wired on the CYD's exposed VSPI header pins (SCK 18 / MISO 19 / MOSI 23 —
-// free because the display runs on HSPI; see platformio.ini's
-// USE_HSPI_PORT flag). Only the chip-select pin is free to choose — verify
-// GPIO22 is actually broken out on your board's header (CN1/P3) and change
-// here if not.
-constexpr uint8_t PIN_RTD_CS = 22;
+// This board revision has no general GPIO header — only two small JST
+// expansion connectors ("P3": GND/IO35/IO22/IO21, "CN1": GND/IO22/IO27/
+// 3.3V), giving only IO35, IO22, IO27, IO21 as candidate GPIOs.
+//
+// CS genuinely needs to be a real, actively-toggled GPIO here: the
+// Adafruit library's readRTD() chains ~9 separate register read/write
+// transactions per call (clear fault, enable bias, read/write config,
+// read RTD registers, disable bias), each expecting its own CS low/high
+// framing so the chip's internal shift register stays in sync. Tying CS
+// permanently to GND (tried first, to avoid touching IO21) broke that
+// framing and produced garbage 0x0000/0x7FFF-ish raw reads — decoded by
+// the CVD polynomial as exactly -242.02°C / ~988°C, which is what gave
+// this away.
+//
+// So IO21 — otherwise the display backlight (TFT_BL) — does double duty
+// as RTD chip-select too. Idle-HIGH is the correct resting state for
+// both roles (backlight on, CS deselected), so the only side effect is a
+// brief (sub-millisecond-per-transaction) backlight blip during each 1
+// Hz RTD read, when CS pulses low.
+constexpr uint8_t PIN_RTD_CS = 21;
+constexpr uint8_t PIN_RTD_MOSI = 27;
+constexpr uint8_t PIN_RTD_MISO = 35;
+constexpr uint8_t PIN_RTD_SCLK = 22;
+
+// --- Touch (XPT2046) -----------------------------------------------------
+// Shares the display's physical bus wires (SCLK 14 / MOSI 13 / MISO 12,
+// same as TFT_MISO/MOSI/SCLK below) through TFT_eSPI's own HSPI
+// peripheral — see Display.cpp, which reads it via TFT_eSPI's
+// getTouchRawZ()/getTouchRaw(). Only CS/IRQ are separate pins; IRQ isn't
+// currently used (polling is enough) but is wired on this board.
+constexpr uint8_t PIN_TOUCH_CS = 33;
+constexpr uint8_t PIN_TOUCH_IRQ = 36;
 
 // RTD element nominal resistance at 0°C.
-constexpr float RTD_NOMINAL_OHMS = 1000.0f;  // Pt-1000
+constexpr float RTD_NOMINAL_OHMS = 100.0f;  // Pt-100
 
-// MAX31865 reference resistor on the breakout. Adafruit's PT1000 breakout
-// uses 4300R — verify against your specific board's silkscreen/datasheet;
-// a wrong value here shifts every reading.
-constexpr float RTD_REF_OHMS = 4300.0f;
+// MAX31865 reference resistor on the breakout — directly multimeter-
+// measured at 425.8R (confirms it's a Pt-100-spec board; a Pt-1000-spec
+// board would use ~4300R). The silkscreen print ("431" or "437", last
+// digit ambiguous) was only ever an approximation — this measured value
+// is the reliable one. A wrong value here shifts every reading.
+constexpr float RTD_REF_OHMS = 425.8f;
 
 // --- Wi-Fi / time ------------------------------------------------------------
 constexpr const char* NTP_SERVER = "pool.ntp.org";
@@ -30,8 +58,20 @@ constexpr uint32_t HISTORY_DAYS = 7;
 constexpr uint32_t HISTORY_CAPACITY = HISTORY_DAYS * 24 * 60;  // 1 sample/min
 constexpr uint32_t HISTORY_WINDOW_SECONDS = HISTORY_DAYS * 24UL * 60 * 60;
 
+// How much of that stored history the chart actually displays at once —
+// independent of HISTORY_DAYS/HISTORY_CAPACITY above, which is how much
+// stays on flash. A rolling 24h window: as time passes the display keeps
+// showing "now - 24h" to "now", scrolling forward continuously, while up
+// to 7 days still accumulate in storage for later.
+constexpr uint32_t CHART_WINDOW_SECONDS = 24UL * 60 * 60;
+
 constexpr const char* HISTORY_FILE = "/history.bin";
 constexpr const char* HISTORY_META_FILE = "/history_meta.bin";
+
+// --- Database upload -----------------------------------------------------
+// Small HTTP-to-MySQL bridge on the Pi (see docker/) that inserts into the
+// keller_temp table. Plain HTTP, no auth — it only listens on the LAN.
+constexpr const char* DB_BRIDGE_URL = "http://192.168.178.23:5005/keller_temp";
 
 // --- OTA ----------------------------------------------------------------------
 // Bump this before tagging a GitHub release (see scripts/release.sh) — the

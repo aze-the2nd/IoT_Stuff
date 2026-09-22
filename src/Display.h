@@ -30,6 +30,10 @@ bool readTouch(int16_t& x, int16_t& y);
 // Whether a touch at x,y landed on the settings gear icon (top-right).
 bool isInGearZone(int16_t x, int16_t y);
 
+// TEMP debug: logs calibrated touch coords (+ the gear zone bounds) via
+// Serial whenever touched.
+void debugTouchOverlay();
+
 // Everything the settings/info screen shows — gathered by main.cpp (it has
 // access to Wi-Fi/Clock/History), formatted and rendered by Display.
 struct DeviceInfo {
