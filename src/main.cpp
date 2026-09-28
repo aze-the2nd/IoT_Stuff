@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <time.h>
 
+#include "BleProvisioning.h"
 #include "Clock.h"
 #include "Config.h"
 #include "DbUpload.h"
@@ -14,6 +15,7 @@
 #include "History.h"
 #include "LanOta.h"
 #include "RtdSensor.h"
+#include "WifiCreds.h"
 
 namespace {
 
@@ -96,6 +98,10 @@ void setup() {
   Display::begin();
   Display::showStatus("Connecting Wi-Fi...");
 
+  // Must run before Clock::begin(), which reads WifiCreds::ssid()/password().
+  WifiCreds::begin();
+  BleProvisioning::begin();
+
   // Must run before Clock::begin(): Clock persists its anchor timestamp on
   // the same LittleFS volume, and needs it mounted first.
   if (!History::begin()) {
@@ -118,6 +124,7 @@ void loop() {
   Clock::poll();
   LanOta::poll();
   GithubOta::poll();
+  BleProvisioning::poll();
 
   uint32_t correctionFloor;
   int32_t correctionDelta;

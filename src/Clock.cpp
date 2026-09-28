@@ -6,7 +6,7 @@
 #include <time.h>
 
 #include "Config.h"
-#include "secrets.h"
+#include "WifiCreds.h"
 
 namespace {
 
@@ -51,7 +51,7 @@ void seedClock(uint32_t epoch) {
 bool tryNtpSync(uint32_t timeoutMs) {
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(WifiCreds::ssid(), WifiCreds::password());
     uint32_t start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < timeoutMs) {
       delay(250);
