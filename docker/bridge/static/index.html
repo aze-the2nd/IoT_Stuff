@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10141a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Keller-Temperatur</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #10141a;
+    --panel: #171d26;
+    --line: #232c38;
+    --text: #dbe4ee;
+    --muted: #7f8ea3;
+    --accent: #6fa8d6;
+    --accent-soft: #3d5a75;
+    --ok: #6fae7e;
+    --warn: #c9a15a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px;
+  }
+  header h1 { font-size: 1rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  #status { font-size: .8rem; color: var(--muted); }
+  #status.error { color: var(--warn); }
+  .current { text-align: center; padding: 24px 0 8px; }
+  .current .value { font-size: 5.2rem; font-weight: 200; line-height: 1; letter-spacing: -.02em; }
+  .current .value .unit { font-size: 1.6rem; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .current .label { margin-top: 8px; font-size: .95rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .current .updated { margin-top: 4px; font-size: .8rem; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0; }
+  .stats .box {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 10px; text-align: center;
+  }
+  .stats .box .k { font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  .stats .box .v { font-size: 1.35rem; font-weight: 500; margin-top: 4px; }
+  .chart {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px; margin-bottom: 20px;
+  }
+  canvas { display: block; width: 100%; height: 200px; }
+  footer {
+    display: flex; justify-content: center; gap: 12px; align-items: center;
+    padding-top: 8px; font-size: .8rem; color: var(--muted);
+  }
+  button {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 18px; font-size: .85rem; cursor: pointer;
+  }
+  button:active { background: var(--accent-soft); }
+  .hint {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; font-size: .85rem; color: var(--muted); line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Keller-Temperatur</h1>
+    <div id="status">verbinde …</div>
+  </header>
+
+  <section class="current">
+    <div class="value"><span id="cur">—</span><span class="unit">°C</span></div>
+    <div class="label">aktuelle Temperatur</div>
+    <div class="updated" id="updated">noch keine Daten</div>
+  </section>
+
+  <section class="stats">
+    <div class="box"><div class="k">Min</div><div class="v" id="stat-min">—</div></div>
+    <div class="box"><div class="k">Ø</div><div class="v" id="stat-avg">—</div></div>
+    <div class="box"><div class="k">Max</div><div class="v" id="stat-max">—</div></div>
+  </section>
+
+  <section class="chart">
+    <canvas id="chart" height="200"></canvas>
+  </section>
+
+  <div class="hint" id="hint" hidden></div>
+
+  <footer>
+    <button id="refresh">Aktualisieren</button>
+    <span id="window">Fenster: 24 h</span>
+  </footer>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

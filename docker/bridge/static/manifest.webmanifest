@@ -1,0 +1,18 @@
+{
+  "name": "Keller-Temperatur",
+  "short_name": "Keller-Temp",
+  "description": "Temperatur des Kellersensors (ESP32) — private Ansicht über Tailnet.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10141a",
+  "theme_color": "#10141a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
