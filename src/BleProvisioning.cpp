@@ -45,7 +45,11 @@ constexpr uint32_t HEARTBEAT_INTERVAL_MS = 3000;
 
 void setStatus(const String& value) {
   if (!g_statusChar) return;
-  g_statusChar->setValue(value.c_str());
+  // Explicit length, NOT c_str() — NimBLECharacteristic::setValue(const
+  // char*) includes the terminating NUL in the GATT value (verified on
+  // hardware: a bare "idle" read back as 5 bytes, 'i','d','l','e','\0'),
+  // which broke exact-match string comparisons on the Kotlin side.
+  g_statusChar->setValue(reinterpret_cast<const uint8_t*>(value.c_str()), value.length());
   g_statusChar->notify();
 }
 
@@ -124,7 +128,7 @@ void BleProvisioning::begin() {
 
   g_statusChar = service->createCharacteristic(
       CHAR_STATUS_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  g_statusChar->setValue("idle");
+  g_statusChar->setValue(reinterpret_cast<const uint8_t*>("idle"), 4);
 
   service->start();
 

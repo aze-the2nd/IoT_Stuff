@@ -1,0 +1,14 @@
+# Custom partition table — see the note in platformio.ini for why. Same
+# nvs/otadata layout as the stock schemes; app0/app1 sized just above what
+# the BLE-enabled firmware actually uses (comfortable margin, not min_spiffs'
+# ~1.9MB), giving spiffs back most of its original ~1.375MB instead of
+# min_spiffs' 128KB — the 128KB size reproducibly crashed LittleFS
+# (IntegerDivideByZero in lfs_alloc during History::append()) once the
+# 7-day/80KB history file was in active use; empirically it needs more room
+# than that to update in place.
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x170000,
+app1,     app,  ota_1,   0x180000,0x170000,
+spiffs,   data, spiffs,  0x2F0000,0x110000,

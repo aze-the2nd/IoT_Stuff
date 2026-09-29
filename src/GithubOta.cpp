@@ -90,6 +90,21 @@ void GithubOta::poll() {
 
   uint32_t now = millis();
   if (g_checkedOnce && now - g_lastCheckMs < GITHUB_OTA_CHECK_INTERVAL_MS) return;
+
+  // TLS (WiFiClientSecure/mbedTLS) needs a healthy chunk of free heap, and
+  // right after boot BLE's own init can leave things tight. Observed on
+  // hardware: this check firing immediately post-boot (first-ever poll())
+  // alongside NimBLE's startup allocations exhausted the heap badly enough
+  // that the *next* unrelated allocation — inside LittleFS, during
+  // History::append()'s file close — failed and crashed with
+  // IntegerDivideByZero (lfs_alloc dividing by a corrupted block count).
+  // Skip this cycle and retry next loop() rather than risk that cascade;
+  // once BLE/Wi-Fi settle, free heap recovers within a few seconds.
+  constexpr uint32_t MIN_FREE_HEAP_FOR_TLS = 40000;
+  if (ESP.getFreeHeap() < MIN_FREE_HEAP_FOR_TLS) {
+    return;
+  }
+
   g_checkedOnce = true;
   g_lastCheckMs = now;
 
