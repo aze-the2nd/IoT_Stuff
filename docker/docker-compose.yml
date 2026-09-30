@@ -30,8 +30,15 @@ services:
       DB_USER: iot
       DB_PASSWORD: pass1234
       DB_NAME: iot_sensors
+      WHISPER_MODEL_SIZE: small
+      WHISPER_MODEL_PATH: /models
+    volumes:
+      - iot-whisper-models:/models
     ports:
       - "0.0.0.0:5005:5005"
 
 volumes:
   iot-mysql-data:
+  # Whisper model cache — kept out of the image (per Tommy's deployment
+  # notes) so a rebuild doesn't re-download the ~460MB small model.
+  iot-whisper-models:

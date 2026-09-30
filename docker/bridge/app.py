@@ -7,7 +7,13 @@
 # Read endpoint + static PWA client added 2026-09-23: API contract from
 # Tommy (see NC iot-keller/CONTRACT.md), adapted to this file's existing
 # pymysql/get_conn pattern by Aurora.
+#
+# Whisper transcription endpoint added 2026-09-30: contract + reference
+# patch from Tommy (Synesis feature/transcribe, see CONTRACT.md section
+# "Whisper-Transkription"), adapted to this file's existing style (uses
+# @app.post like the rest of the file, rather than add_url_rule) by Aurora.
 import os
+import tempfile
 from datetime import datetime, timezone
 
 import pymysql
@@ -20,6 +26,29 @@ CLIENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 GET_LIMIT_DEFAULT = 500
 GET_LIMIT_MAX = 5000
+
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "small")
+WHISPER_MODEL_PATH = os.environ.get("WHISPER_MODEL_PATH")  # None = library default cache dir
+WHISPER_MAX_AUDIO_BYTES = 25 * 1024 * 1024
+WHISPER_ALLOWED_CONTENT_TYPES = {"audio/mp4", "audio/m4a", "audio/wav", "audio/x-wav", "audio/webm"}
+
+# Lazy-loaded on first request, not at import time: the model is ~460MB and
+# loading it shouldn't block container startup or /health.
+_whisper_model = None
+
+
+def get_whisper_model():
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+
+        _whisper_model = WhisperModel(
+            WHISPER_MODEL_SIZE,
+            device="cpu",
+            compute_type="int8",
+            download_root=WHISPER_MODEL_PATH,
+        )
+    return _whisper_model
 
 
 def get_conn():
@@ -89,6 +118,51 @@ def keller_temp_read():
 
     values = [{"t": int(r["t"]), "temp_c": float(r["temp_c"])} for r in rows]
     return jsonify(ok=True, count=len(values), values=values)
+
+
+@app.post("/transcripts/whisper")
+def transcripts_whisper():
+    content_type = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+    if content_type not in WHISPER_ALLOWED_CONTENT_TYPES:
+        return jsonify(ok=False, error="content-type must be audio/mp4"), 400
+
+    length = request.content_length or 0
+    if length <= 0:
+        return jsonify(ok=False, error="empty audio"), 400
+    if length > WHISPER_MAX_AUDIO_BYTES:
+        return jsonify(ok=False, error="audio too large (max 25 MB)"), 413
+
+    audio = request.get_data()
+    if not audio:
+        return jsonify(ok=False, error="empty audio"), 400
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as tmp:
+            tmp.write(audio)
+            tmp_path = tmp.name
+
+        model = get_whisper_model()
+        segments, info = model.transcribe(tmp_path, language="de", beam_size=1)
+        text = " ".join(segment.text.strip() for segment in segments).strip()
+        if not text:
+            return jsonify(ok=False, error="no speech detected"), 422
+
+        return jsonify(
+            ok=True,
+            text=text,
+            model=f"whisper-{WHISPER_MODEL_SIZE}",
+            language=info.language or "de",
+        )
+    except Exception:
+        app.logger.exception("whisper transcription failed")
+        return jsonify(ok=False, error="whisper unavailable"), 503
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 @app.get("/health")

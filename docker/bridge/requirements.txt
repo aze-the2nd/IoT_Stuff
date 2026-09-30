@@ -1,3 +1,9 @@
 flask==3.0.3
 pymysql==1.1.1
 cryptography==43.0.1
+faster-whisper==1.2.1
+# Pinned: faster-whisper's decode_audio() calls av.open(..., metadata_errors=...),
+# a parameter later PyAV releases (13.0.0+, the ABI3 rewrite) dropped —
+# verified failing against av 19.0.0 (the unpinned resolution of
+# faster-whisper's own `av>=11` constraint). Pin to the last pre-rewrite line.
+av==12.3.0
