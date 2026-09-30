@@ -16,6 +16,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 
+import av.error
 import pymysql
 import pymysql.cursors
 from flask import Flask, jsonify, request, send_from_directory
@@ -154,6 +155,13 @@ def transcripts_whisper():
             model=f"whisper-{WHISPER_MODEL_SIZE}",
             language=info.language or "de",
         )
+    except av.error.InvalidDataError:
+        # Bytes with an allowed Content-Type that still aren't decodable
+        # audio (corrupt upload, wrong format despite the header) — a client
+        # error, not a whisper/infra failure. Verified against hardware:
+        # this exact exception is what av.open() raises via faster-whisper's
+        # decode_audio() for undecodable input (found by Tommy's e2e probe).
+        return jsonify(ok=False, error="invalid audio"), 400
     except Exception:
         app.logger.exception("whisper transcription failed")
         return jsonify(ok=False, error="whisper unavailable"), 503
