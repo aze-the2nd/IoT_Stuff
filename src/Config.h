@@ -77,7 +77,7 @@ constexpr const char* DB_BRIDGE_URL = "http://192.168.178.23:5005/keller_temp";
 // Bump this before tagging a GitHub release (see scripts/release.sh) — the
 // device compares this against the latest release's tag to decide whether to
 // self-update.
-constexpr const char* FW_VERSION = "1";
+constexpr const char* FW_VERSION = "2";
 
 // LAN OTA (ArduinoOTA, pushed from PlatformIO during development).
 constexpr const char* OTA_HOSTNAME = "iot-rtd-sensor";
